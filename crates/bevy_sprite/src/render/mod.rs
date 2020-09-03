@@ -1,4 +1,4 @@
-use crate::{ColorMaterial, Sprite, TextureAtlas, TextureAtlasSprite};
+use crate::{ColorMaterial, Sprite, TextTextureAtlasSprite, TextureAtlas, TextureAtlasSprite};
 use bevy_asset::{Assets, Handle};
 use bevy_ecs::Resources;
 use bevy_render::{
@@ -17,6 +17,57 @@ pub const SPRITE_PIPELINE_HANDLE: Handle<PipelineDescriptor> =
 
 pub const SPRITE_SHEET_PIPELINE_HANDLE: Handle<PipelineDescriptor> =
     Handle::from_u128(90168858051802816124217444474933884151);
+
+pub const TEXT_SHEET_PIPELINE_HANDLE: Handle<PipelineDescriptor> =
+    Handle::from_u128(90168858051802816124217444474395309290);
+
+pub fn build_text_sheet_pipeline(shaders: &mut Assets<Shader>) -> PipelineDescriptor {
+    PipelineDescriptor {
+        rasterization_state: Some(RasterizationStateDescriptor {
+            front_face: FrontFace::Ccw,
+            cull_mode: CullMode::None,
+            depth_bias: 0,
+            depth_bias_slope_scale: 0.0,
+            depth_bias_clamp: 0.0,
+            clamp_depth: false,
+        }),
+        depth_stencil_state: Some(DepthStencilStateDescriptor {
+            format: TextureFormat::Depth32Float,
+            depth_write_enabled: true,
+            depth_compare: CompareFunction::LessEqual,
+            stencil: StencilStateDescriptor {
+                front: StencilStateFaceDescriptor::IGNORE,
+                back: StencilStateFaceDescriptor::IGNORE,
+                read_mask: 0,
+                write_mask: 0,
+            },
+        }),
+        color_states: vec![ColorStateDescriptor {
+            format: TextureFormat::Bgra8UnormSrgb,
+            color_blend: BlendDescriptor {
+                src_factor: BlendFactor::SrcAlpha,
+                dst_factor: BlendFactor::OneMinusSrcAlpha,
+                operation: BlendOperation::Add,
+            },
+            alpha_blend: BlendDescriptor {
+                src_factor: BlendFactor::One,
+                dst_factor: BlendFactor::One,
+                operation: BlendOperation::Add,
+            },
+            write_mask: ColorWrite::ALL,
+        }],
+        ..PipelineDescriptor::new(ShaderStages {
+            vertex: shaders.add(Shader::from_glsl(
+                ShaderStage::Vertex,
+                include_str!("text_sheet.vert"),
+            )),
+            fragment: Some(shaders.add(Shader::from_glsl(
+                ShaderStage::Fragment,
+                include_str!("text_sheet.frag"),
+            ))),
+        })
+    }
+}
 
 pub fn build_sprite_sheet_pipeline(shaders: &mut Assets<Shader>) -> PipelineDescriptor {
     PipelineDescriptor {
@@ -119,6 +170,7 @@ pub mod node {
     pub const SPRITE: &str = "sprite";
     pub const SPRITE_SHEET: &str = "sprite_sheet";
     pub const SPRITE_SHEET_SPRITE: &str = "sprite_sheet_sprite";
+    pub const TEXT_SHEET_SPRITE: &str = "text_sheet_sprite";
 }
 
 pub trait SpriteRenderGraphBuilder {
@@ -148,12 +200,21 @@ impl SpriteRenderGraphBuilder for RenderGraph {
             RenderResourcesNode::<TextureAtlasSprite>::new(true),
         );
 
+        self.add_system_node(
+            node::TEXT_SHEET_SPRITE,
+            RenderResourcesNode::<TextTextureAtlasSprite>::new(true),
+        );
+
         let mut pipelines = resources.get_mut::<Assets<PipelineDescriptor>>().unwrap();
         let mut shaders = resources.get_mut::<Assets<Shader>>().unwrap();
         pipelines.set(SPRITE_PIPELINE_HANDLE, build_sprite_pipeline(&mut shaders));
         pipelines.set(
             SPRITE_SHEET_PIPELINE_HANDLE,
             build_sprite_sheet_pipeline(&mut shaders),
+        );
+        pipelines.set(
+            TEXT_SHEET_PIPELINE_HANDLE,
+            build_text_sheet_pipeline(&mut shaders),
         );
         self
     }
